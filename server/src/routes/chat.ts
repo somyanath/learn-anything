@@ -79,6 +79,7 @@ export function chatRouter(workspacesDir: string, agentRunner: AgentRunner) {
             session.cost.inputTokens += inputTokens;
             session.cost.outputTokens += outputTokens;
             session.sdkSessionId = sdkSessionId;
+            if (model) session.model = activeModel;
             await writeSession(workspaceDir, session);
 
             send("done", {

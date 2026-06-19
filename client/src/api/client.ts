@@ -1,5 +1,11 @@
 import type { Session } from "../types";
 
+export async function getTopic(slug: string): Promise<Session> {
+  const res = await fetch(`/api/topics/${slug}`);
+  if (!res.ok) throw new Error(`Failed to fetch topic: ${res.status}`);
+  return res.json();
+}
+
 export async function getTopics(): Promise<Session[]> {
   const res = await fetch("/api/topics");
   if (!res.ok) throw new Error(`Failed to fetch topics: ${res.status}`);

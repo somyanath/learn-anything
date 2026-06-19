@@ -14,7 +14,7 @@ interface ToolActivity {
 interface ChatPanelProps {
   slug: string;
   model: string;
-  onTurnComplete?: () => void;
+  onTurnComplete?: (costUsd: number) => void;
 }
 
 export function ChatPanel({ slug, model, onTurnComplete }: ChatPanelProps) {
@@ -39,7 +39,6 @@ export function ChatPanel({ slug, model, onTurnComplete }: ChatPanelProps) {
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
 
-    // Placeholder for streaming assistant reply
     setMessages((prev) => [...prev, { role: "assistant", content: "", streaming: true }]);
 
     await streamChat(slug, text, model, {
@@ -57,7 +56,7 @@ export function ChatPanel({ slug, model, onTurnComplete }: ChatPanelProps) {
       onTool: (toolName) => {
         setToolActivity({ toolName });
       },
-      onDone: () => {
+      onDone: (data) => {
         setMessages((prev) => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
@@ -68,11 +67,10 @@ export function ChatPanel({ slug, model, onTurnComplete }: ChatPanelProps) {
         });
         setToolActivity(null);
         setLoading(false);
-        onTurnComplete?.();
+        onTurnComplete?.(data.usage.costUsd);
       },
       onError: (msg) => {
         setError(msg);
-        // Remove the streaming placeholder
         setMessages((prev) => prev.filter((m) => !m.streaming));
         setToolActivity(null);
         setLoading(false);
