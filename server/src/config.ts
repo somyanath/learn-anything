@@ -19,10 +19,20 @@ export const PRICING: Record<Model, { inputPer1M: number; outputPer1M: number }>
   "claude-haiku-4-5": { inputPer1M: 1, outputPer1M: 5 },
 };
 
-export const config = {
-  port: Number(process.env.PORT ?? 8787),
-  workspacesDir: process.env.WORKSPACES_DIR ?? "./workspaces",
-  defaultModel: (process.env.DEFAULT_MODEL ?? "claude-sonnet-4-6") as Model,
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
-  anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL,
-};
+export interface AppConfig {
+  port: number;
+  workspacesDir: string;
+  defaultModel: Model;
+  anthropicApiKey: string;
+  anthropicBaseUrl?: string;
+}
+
+export function getConfig(): AppConfig {
+  return {
+    port: Number(process.env.PORT ?? 8787),
+    workspacesDir: process.env.WORKSPACES_DIR ?? "./workspaces",
+    defaultModel: (process.env.DEFAULT_MODEL ?? "claude-sonnet-4-6") as Model,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+    anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL,
+  };
+}
