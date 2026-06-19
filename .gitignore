@@ -1,1 +1,5 @@
 node_modules
+server/.env
+workspaces/
+.pnpm-store/
+dist/
