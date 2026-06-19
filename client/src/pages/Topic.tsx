@@ -1,9 +1,11 @@
-import { useParams } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
+import { ChatPanel } from "../components/ChatPanel";
 
 export function Topic() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+
+  if (!slug) return null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -17,8 +19,8 @@ export function Topic() {
         <span className="text-gray-300">|</span>
         <span className="text-sm font-medium text-gray-700">{slug}</span>
       </header>
-      <div className="flex-1 flex items-center justify-center text-gray-400">
-        <p>Chat coming soon (Issue #4)</p>
+      <div className="flex-1 min-h-0">
+        <ChatPanel slug={slug} model="claude-sonnet-4-6" />
       </div>
     </div>
   );
