@@ -31,9 +31,17 @@ export function chatRouter(workspacesDir: string, agentRunner: AgentRunner) {
 
     const activeModel = model ?? session.model;
     const userTs = new Date().toISOString();
+    const userMessage = message.trim();
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    const send = (event: string, data: unknown) =>
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
     try {
-      let reply = "";
+      let finalReply = "";
       let sdkSessionId = session.sdkSessionId;
       let costUsd = 0;
       let inputTokens = 0;
@@ -42,36 +50,51 @@ export function chatRouter(workspacesDir: string, agentRunner: AgentRunner) {
       for await (const msg of agentRunner({
         workspaceDir,
         model: activeModel,
-        userMessage: message.trim(),
+        userMessage,
         resumeSessionId: session.sdkSessionId,
       })) {
-        if (msg.type === "result") {
+        if (msg.type === "assistant") {
+          const text = (msg.message.content as Array<{ type: string; text?: string }>)
+            .filter((b) => b.type === "text" && typeof b.text === "string")
+            .map((b) => b.text as string)
+            .join("");
+          if (text) {
+            finalReply = text;
+            send("text", { text });
+          }
+        } else if (msg.type === "tool_progress") {
+          send("tool", { toolName: msg.tool_name, elapsedSeconds: msg.elapsed_time_seconds });
+        } else if (msg.type === "result") {
           if (msg.subtype === "success") {
-            reply = msg.result;
+            if (!finalReply) finalReply = msg.result;
             sdkSessionId = msg.session_id;
             costUsd = msg.total_cost_usd;
             inputTokens = msg.usage.input_tokens;
             outputTokens = msg.usage.output_tokens;
+
+            const assistantTs = new Date().toISOString();
+            session.transcript.push({ role: "user", content: userMessage, ts: userTs });
+            session.transcript.push({ role: "assistant", content: finalReply, ts: assistantTs });
+            session.cost.topicTotalUsd += costUsd;
+            session.cost.inputTokens += inputTokens;
+            session.cost.outputTokens += outputTokens;
+            session.sdkSessionId = sdkSessionId;
+            await writeSession(workspaceDir, session);
+
+            send("done", {
+              usage: { inputTokens, outputTokens, costUsd },
+              sdkSessionId,
+            });
           } else {
-            res.status(502).json({ error: `agent error: ${msg.subtype}` });
-            return;
+            send("error", { message: `agent error: ${msg.subtype}` });
           }
+          return;
         }
       }
-
-      const assistantTs = new Date().toISOString();
-      session.transcript.push({ role: "user", content: message.trim(), ts: userTs });
-      session.transcript.push({ role: "assistant", content: reply, ts: assistantTs });
-      session.cost.topicTotalUsd += costUsd;
-      session.cost.inputTokens += inputTokens;
-      session.cost.outputTokens += outputTokens;
-      session.sdkSessionId = sdkSessionId;
-
-      await writeSession(workspaceDir, session);
-
-      res.json({ reply, sdkSessionId });
     } catch (err) {
-      res.status(500).json({ error: String(err) });
+      send("error", { message: String(err) });
+    } finally {
+      res.end();
     }
   });
 

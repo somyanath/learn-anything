@@ -1,9 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { sendMessage } from "../api/client";
+import { streamChat } from "../api/client";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  streaming?: boolean;
+}
+
+interface ToolActivity {
+  toolName: string;
 }
 
 interface ChatPanelProps {
@@ -13,6 +18,7 @@ interface ChatPanelProps {
 
 export function ChatPanel({ slug, model }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [toolActivity, setToolActivity] = useState<ToolActivity | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +26,7 @@ export function ChatPanel({ slug, model }: ChatPanelProps) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, toolActivity]);
 
   async function handleSend() {
     const text = input.trim();
@@ -28,17 +34,48 @@ export function ChatPanel({ slug, model }: ChatPanelProps) {
 
     setInput("");
     setError(null);
+    setToolActivity(null);
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setLoading(true);
 
-    try {
-      const { reply } = await sendMessage(slug, text, model);
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
-    }
+    // Placeholder for streaming assistant reply
+    setMessages((prev) => [...prev, { role: "assistant", content: "", streaming: true }]);
+
+    await streamChat(slug, text, model, {
+      onText: (chunk) => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant" && last.streaming) {
+            updated[updated.length - 1] = { ...last, content: chunk };
+          }
+          return updated;
+        });
+        setToolActivity(null);
+      },
+      onTool: (toolName) => {
+        setToolActivity({ toolName });
+      },
+      onDone: () => {
+        setMessages((prev) => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.streaming) {
+            updated[updated.length - 1] = { ...last, streaming: false };
+          }
+          return updated;
+        });
+        setToolActivity(null);
+        setLoading(false);
+      },
+      onError: (msg) => {
+        setError(msg);
+        // Remove the streaming placeholder
+        setMessages((prev) => prev.filter((m) => !m.streaming));
+        setToolActivity(null);
+        setLoading(false);
+      },
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -51,7 +88,7 @@ export function ChatPanel({ slug, model }: ChatPanelProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
+        {messages.length === 0 && !loading && (
           <p className="text-gray-400 text-sm text-center mt-8">
             Send a message to start learning.
           </p>
@@ -66,21 +103,23 @@ export function ChatPanel({ slug, model }: ChatPanelProps) {
                 msg.role === "user"
                   ? "bg-blue-600 text-white"
                   : "bg-white border border-gray-200 text-gray-800"
-              }`}
+              } ${msg.streaming && !msg.content ? "animate-pulse" : ""}`}
             >
-              {msg.content}
+              {msg.content || (msg.streaming ? "…" : "")}
             </div>
           </div>
         ))}
-        {loading && (
+        {toolActivity && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-400">
-              Thinking…
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-xs text-amber-700">
+              Using {toolActivity.toolName}…
             </div>
           </div>
         )}
         {error && (
-          <div className="text-red-500 text-sm text-center">{error}</div>
+          <div className="text-red-500 text-sm text-center bg-red-50 rounded-lg p-2">
+            {error}
+          </div>
         )}
         <div ref={bottomRef} />
       </div>
