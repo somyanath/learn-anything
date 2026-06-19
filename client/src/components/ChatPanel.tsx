@@ -14,9 +14,10 @@ interface ToolActivity {
 interface ChatPanelProps {
   slug: string;
   model: string;
+  onTurnComplete?: () => void;
 }
 
-export function ChatPanel({ slug, model }: ChatPanelProps) {
+export function ChatPanel({ slug, model, onTurnComplete }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [toolActivity, setToolActivity] = useState<ToolActivity | null>(null);
   const [input, setInput] = useState("");
@@ -67,6 +68,7 @@ export function ChatPanel({ slug, model }: ChatPanelProps) {
         });
         setToolActivity(null);
         setLoading(false);
+        onTurnComplete?.();
       },
       onError: (msg) => {
         setError(msg);
